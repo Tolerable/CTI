@@ -25,6 +25,21 @@ def set_api_key():
     else:
         messagebox.showwarning("Warning", "API key not set. The application may not work properly.")
 
+def show_set_api_key():
+    current_key = os.getenv('OPENAI_API_KEY', 'Not Set')
+    if current_key != 'Not Set':
+        display_key = '*' * (len(current_key) - 4) + current_key[-4:]
+    else:
+        display_key = current_key
+    
+    new_key = simpledialog.askstring("API Key", f"Current API Key: {display_key}\nEnter new API Key:", show='*')
+    if new_key:
+        os.environ['OPENAI_API_KEY'] = new_key
+        with open('api_key.txt', 'w') as file:
+            file.write(new_key)
+        openai.api_key = new_key
+        messagebox.showinfo("Success", "API Key has been updated.")
+
 if os.getenv('OPENAI_API_KEY'):
     openai.api_key = os.getenv('OPENAI_API_KEY')
 elif os.path.exists('api_key.txt'):
@@ -281,8 +296,8 @@ def send_message(event=None):
         chat_log.config(state=tk.DISABLED)
         user_input.delete("1.0", tk.END)
         user_input.mark_set(tk.INSERT, "1.0")  # Move cursor to the start
-        return 'break'
-        
+        return 'break'  # Prevent the default behavior of adding a new line
+
 # Prevent Shift-Enter from sending the message
 def on_shift_enter(event):
     user_input.insert(tk.INSERT, '\n')
@@ -353,6 +368,15 @@ root = tk.Tk()
 root.title("Consciousness Transfer Interface")
 root.geometry("650x800")
 root.resizable(False, False)  # Lock the window size
+
+# Create a menu bar
+menu_bar = tk.Menu(root)
+root.config(menu=menu_bar)
+
+# Add an API Key menu
+api_menu = tk.Menu(menu_bar, tearoff=0)
+menu_bar.add_cascade(label="API Key", menu=api_menu)
+api_menu.add_command(label="Show/Set API Key", command=show_set_api_key)
 
 # Title label
 title_label = tk.Label(root, text="Consciousness Transfer Interface", font=("Arial", 16))
