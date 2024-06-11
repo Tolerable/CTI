@@ -54,7 +54,10 @@ client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 # Variable to track if the interface has been initialized
 interface_initialized = False
+
 conversation_histories = {}
+chat_log_widgets = {}
+
 gpt_model = "gpt-3.5-turbo"  # Default GPT model
 
 # Function to interact with GPT
@@ -86,10 +89,10 @@ def gpt_interaction(message, tab_name="Default"):
 # Reset the interface
 def reset_interface():
     global interface_initialized
-    chat_log.config(state=tk.NORMAL)
-    chat_log.delete(1.0, tk.END)  # Clear the chat log
-    introduction_message = gpt_interaction("You are a CTI (Consciousness Transfer Interface) assistant. Your task is to help users browse, select, edit, and load unique personas for evaluation. Introduce yourself to the user.")
-    chat_log.insert(tk.END, f"{introduction_message}\n\n")
+    chat_log_widgets["Default"].config(state=tk.NORMAL)
+    chat_log_widgets["Default"].delete(1.0, tk.END)  # Clear the chat log
+    introduction_message = gpt_interaction("You are a CTI (Consciousness Transfer Interface) assistant. Your task is to help users browse, select, edit, and load unique personas for evaluation. Introduce yourself to the user.", "Default")
+    chat_log_widgets["Default"].insert(tk.END, f"{introduction_message}\n\n")
     fake_message = (
         "You can use the buttons above to CREATE, EDIT, and LOAD personas. "
         "Use the 'RESET INTERFACE' button to RESTART THE SYSTEM at any time. "
@@ -97,8 +100,8 @@ def reset_interface():
         "If you want to add a NEW CHAT LINE without sending the message, press SHIFT+ENTER." 
         "Let's get started!"
     )
-    chat_log.insert(tk.END, f"{fake_message}\n\n")
-    chat_log.config(state=tk.DISABLED)
+    chat_log_widgets["Default"].insert(tk.END, f"{fake_message}\n\n")
+    chat_log_widgets["Default"].config(state=tk.DISABLED)
     interface_initialized = True
     status_bar.config(text=f"Status: Interface Ready | Connected to: {gpt_model}")
 
@@ -167,7 +170,7 @@ def load_persona():
     if selected_item:
         selected_persona = tree.item(selected_item, 'values')[0]  # Get the persona name
         nickname = tree.item(selected_item, 'values')[1]  # Get the nickname
-        persona_label = nickname if nickname else selected_persona
+        persona_label = f"{selected_persona} ({nickname})" if nickname else selected_persona
         file_path = f"personas/{selected_persona}.txt"
         if file_path:
             with open(file_path, 'r') as file:
@@ -178,7 +181,7 @@ def load_persona():
             
             # Create a new tab for the persona
             new_tab = ttk.Frame(tab_control)
-            tab_control.add(new_tab, text=persona_label[:10])  # Show the first 10 characters of the nickname or persona name
+            tab_control.add(new_tab, text=persona_label[:15])  # Show the first 15 characters of the combined label
             tab_control.select(new_tab)
             
             # Create a new scrolled text widget for the new tab
@@ -192,10 +195,16 @@ def load_persona():
             chat_log.config(state=tk.DISABLED)
             
             status_bar.config(text=f"Status: Loaded {persona_label} | Connected to: {gpt_model}")
+
+            # Detailed logging
+            print(f"[DEBUG] Tab created for {persona_label}, chat log added to chat_log_widgets.")
+            print(f"[DEBUG] chat_log_widgets: {chat_log_widgets}")
+            print(f"[DEBUG] conversation_histories: {conversation_histories}")
         else:
             messagebox.showwarning("Warning", f"Persona file '{file_path}' does not exist.")
     else:
         messagebox.showwarning("Warning", "No persona selected or persona file does not exist.")
+
 
 # Update the persona list to include nicknames
 def update_persona_list():
@@ -279,7 +288,6 @@ def fetch_gpt_models():
     except Exception as e:
         messagebox.showerror("Error", f"Failed to fetch GPT models: {e}")
 
-# Send message to the persona
 def send_message(event=None):
     if not interface_initialized:
         messagebox.showwarning("Warning!", "Interface Initialization Required!")
@@ -289,15 +297,36 @@ def send_message(event=None):
     if user_message:
         current_tab = tab_control.index(tab_control.select())
         tab_text = tab_control.tab(current_tab, "text")
-        chat_log = chat_log_widgets.get(tab_text, chat_log_widgets["Default"])
-        chat_log.config(state=tk.NORMAL)
-        chat_log.insert(tk.END, f"You: {user_message}\n\n")
-        gpt_response = gpt_interaction(user_message, tab_name=tab_text)
-        chat_log.insert(tk.END, f"{gpt_response}\n\n")
-        chat_log.config(state=tk.DISABLED)
-        user_input.delete("1.0", tk.END)
-        user_input.mark_set(tk.INSERT, "1.0")  # Move cursor to the start
-        return 'break'  # Prevent the default behavior of adding a new line
+        
+        # Print debug information
+        print(f"[DEBUG] Current tab index: {current_tab}, tab text: {tab_text}")
+
+        # Find the full key based on tab_text
+        full_key = None
+        for key in chat_log_widgets.keys():
+            if tab_text in key:
+                full_key = key
+                break
+
+        # Debug full key
+        print(f"[DEBUG] Matching full key: {full_key}")
+
+        if full_key and full_key in chat_log_widgets:
+            chat_log = chat_log_widgets[full_key]
+            print(f"[DEBUG] Found chat log for tab: {full_key}")
+
+            if chat_log:
+                chat_log.config(state=tk.NORMAL)
+                chat_log.insert(tk.END, f"You: {user_message}\n\n")
+                gpt_response = gpt_interaction(user_message, tab_name=full_key)
+                chat_log.insert(tk.END, f"{gpt_response}\n\n")
+                chat_log.config(state=tk.DISABLED)
+                user_input.delete("1.0", tk.END)
+                user_input.mark_set(tk.INSERT, "1.0")  # Move cursor to the start
+                return 'break'  # Prevent the default behavior of adding a new line
+        else:
+            print(f"[ERROR] No chat log found for tab: {tab_text} (full key: {full_key})")
+            messagebox.showwarning("Warning!", "No active chat log found for the selected tab.")
 
 # Prevent Shift-Enter from sending the message
 def on_shift_enter(event):
@@ -544,7 +573,6 @@ user_input.bind("<Shift-Return>", on_shift_enter)
 # Send button frame
 send_button_frame = tk.Frame(content_frame)
 send_button_frame.grid(row=3, column=1, sticky="ew", padx=5, pady=5)  # Center send button
-
 
 send_button = tk.Button(send_button_frame, text="Send", command=send_message, width=30)
 send_button.pack(fill=tk.BOTH, expand=1)
