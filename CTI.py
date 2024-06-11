@@ -280,7 +280,9 @@ def send_message(event=None):
         chat_log.insert(tk.END, f"{gpt_response}\n\n")
         chat_log.config(state=tk.DISABLED)
         user_input.delete("1.0", tk.END)
-
+        user_input.mark_set(tk.INSERT, "1.0")  # Move cursor to the start
+        return 'break'
+        
 # Prevent Shift-Enter from sending the message
 def on_shift_enter(event):
     user_input.insert(tk.INSERT, '\n')
