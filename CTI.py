@@ -38,15 +38,17 @@ client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 # Variable to track if the interface has been initialized
 interface_initialized = False
-conversation_history = []
+conversation_histories = {}
 gpt_model = "gpt-3.5-turbo"  # Default GPT model
 
 # Function to interact with GPT
 def gpt_interaction(message, tab_name="Default"):
     try:
-        # Add the user's message to the conversation history
-        conversation_history.append({"role": "user", "content": message})
-        trimmed_history = conversation_history[-10:]  # Adjust as needed to manage token usage
+        # Get the correct conversation history
+        if tab_name not in conversation_histories:
+            conversation_histories[tab_name] = []
+        conversation_histories[tab_name].append({"role": "user", "content": message})
+        trimmed_history = conversation_histories[tab_name][-10:]  # Adjust as needed to manage token usage
 
         response = client.chat.completions.create(
             model=gpt_model,
@@ -56,7 +58,7 @@ def gpt_interaction(message, tab_name="Default"):
         if response and response.choices:
             message = response.choices[0].message
             if hasattr(message, 'content'):
-                conversation_history.append({"role": "assistant", "content": message.content.strip()})
+                conversation_histories[tab_name].append({"role": "assistant", "content": message.content.strip()})
                 return message.content.strip()
             else:
                 return "Error: No content in response"
@@ -148,17 +150,32 @@ def load_persona():
     selected_item = tree.focus()
     if selected_item:
         selected_persona = tree.item(selected_item, 'values')[0]  # Get the persona name
+        nickname = tree.item(selected_item, 'values')[1]  # Get the nickname
+        persona_label = nickname if nickname else selected_persona
         file_path = f"personas/{selected_persona}.txt"
         if file_path:
             with open(file_path, 'r') as file:
                 persona_content = file.read()
-            conversation_history.append({"role": "system", "content": persona_content})
-            introduction_message = gpt_interaction("The Loaded Persona is your inner core, not public conversation. As ALWAYS [in character] introduce yourself [add any details to remain in character as needed].")
+            if persona_label not in conversation_histories:
+                conversation_histories[persona_label] = [{"role": "system", "content": persona_content}]
+            introduction_message = gpt_interaction("The Loaded Persona is your inner core, not public conversation. As ALWAYS [in character] introduce yourself [add any details to remain in character as needed].", tab_name=persona_label)
+            
+            # Create a new tab for the persona
+            new_tab = ttk.Frame(tab_control)
+            tab_control.add(new_tab, text=persona_label[:10])  # Show the first 10 characters of the nickname or persona name
+            tab_control.select(new_tab)
+            
+            # Create a new scrolled text widget for the new tab
+            chat_log = scrolledtext.ScrolledText(new_tab, state=tk.DISABLED, width=60, height=15, wrap=tk.WORD)
+            chat_log.pack(padx=10, pady=10, fill=tk.BOTH, expand=1)
+            chat_log_widgets[persona_label] = chat_log
+            
+            # Insert the introduction message into the new tab's chat log
             chat_log.config(state=tk.NORMAL)
-            chat_log.delete(1.0, tk.END)
             chat_log.insert(tk.END, f"{introduction_message}\n\n")
             chat_log.config(state=tk.DISABLED)
-            status_bar.config(text=f"Status: Loaded {selected_persona} | Connected to: {gpt_model}")
+            
+            status_bar.config(text=f"Status: Loaded {persona_label} | Connected to: {gpt_model}")
         else:
             messagebox.showwarning("Warning", f"Persona file '{file_path}' does not exist.")
     else:
@@ -255,11 +272,13 @@ def send_message(event=None):
     user_message = user_input.get("1.0", tk.END).strip()
     if user_message:
         current_tab = tab_control.index(tab_control.select())
-        chat_log_widgets[current_tab].config(state=tk.NORMAL)
-        chat_log_widgets[current_tab].insert(tk.END, f"You: {user_message}\n\n")
-        gpt_response = gpt_interaction(user_message, tab_name=current_tab)
-        chat_log_widgets[current_tab].insert(tk.END, f"{gpt_response}\n\n")
-        chat_log_widgets[current_tab].config(state=tk.DISABLED)
+        tab_text = tab_control.tab(current_tab, "text")
+        chat_log = chat_log_widgets.get(tab_text, chat_log_widgets["Default"])
+        chat_log.config(state=tk.NORMAL)
+        chat_log.insert(tk.END, f"You: {user_message}\n\n")
+        gpt_response = gpt_interaction(user_message, tab_name=tab_text)
+        chat_log.insert(tk.END, f"{gpt_response}\n\n")
+        chat_log.config(state=tk.DISABLED)
         user_input.delete("1.0", tk.END)
 
 # Prevent Shift-Enter from sending the message
