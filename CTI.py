@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, filedialog, simpledialog, ttk, Scrollbar, Listbox
+from PIL import Image, ImageTk  # Import for handling images
 import openai
 import os
 import json
@@ -363,11 +364,69 @@ def rename_persona():
     else:
         messagebox.showwarning("Warning", "No persona selected or persona file does not exist.")
 
+# Function to show the splash screen
+def show_splash_screen():
+    splash = tk.Toplevel()
+    splash.title("CTI Splash Screen")
+    splash.geometry("512x512")
+    splash.overrideredirect(True)  # Remove the window border and title bar
+    splash.attributes('-topmost', True)  # Keep splash screen on top
+    
+    # Center the splash screen
+    screen_width = splash.winfo_screenwidth()
+    screen_height = splash.winfo_screenheight()
+    x = int((screen_width / 2) - (512 / 2))
+    y = int((screen_height / 2) - (512 / 2))
+    splash.geometry(f"512x512+{x}+{y}")
+
+    # Load and display the image
+    splash_image = Image.open("./assets/CTI-LOGO.PNG")
+    splash_image = splash_image.resize((512, 512), Image.LANCZOS)  # Use LANCZOS instead of ANTIALIAS
+    splash_photo = ImageTk.PhotoImage(splash_image)
+    
+    splash_label = tk.Label(splash, image=splash_photo)
+    splash_label.image = splash_photo  # Keep a reference to avoid garbage collection
+    splash_label.pack()
+    
+    # Close the splash screen after 5 seconds
+    root.after(5000, splash.destroy)
+    
+    # Allow the splash screen to be closed if clicked
+    splash.bind("<Button-1>", lambda e: splash.destroy())
+
+# Function to save window position
+def save_window_position():
+    with open('window_position.json', 'w') as file:
+        json.dump({'x': root.winfo_x(), 'y': root.winfo_y()}, file)
+
+# Function to load window position
+def load_window_position():
+    if os.path.exists('window_position.json'):
+        with open('window_position.json', 'r') as file:
+            position = json.load(file)
+            root.geometry(f"+{position['x']}+{position['y']}")
+    else:
+        # Center the main window if no position is saved
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        x = int((screen_width / 2) - (650 / 2))
+        y = int((screen_height / 2) - (800 / 2))
+        root.geometry(f"650x800+{x}+{y}")
+
 # Create main application window
 root = tk.Tk()
+
+# Show the splash screen
+show_splash_screen()
+
 root.title("Consciousness Transfer Interface")
-root.geometry("650x800")
 root.resizable(False, False)  # Lock the window size
+
+# Load window position
+load_window_position()
+
+# Bind the window close event to save the position
+root.protocol("WM_DELETE_WINDOW", lambda: [save_window_position(), root.destroy()])
 
 # Create a menu bar
 menu_bar = tk.Menu(root)
@@ -485,6 +544,7 @@ user_input.bind("<Shift-Return>", on_shift_enter)
 # Send button frame
 send_button_frame = tk.Frame(content_frame)
 send_button_frame.grid(row=3, column=1, sticky="ew", padx=5, pady=5)  # Center send button
+
 
 send_button = tk.Button(send_button_frame, text="Send", command=send_message, width=30)
 send_button.pack(fill=tk.BOTH, expand=1)
