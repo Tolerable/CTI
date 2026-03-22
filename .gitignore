@@ -4,6 +4,8 @@ gpt_models.json
 gpt_models.txt
 nicknames.json
 personas/
+api_key.txt
+window_position.json
 
 # === Added from MASTER_GITIGNORE ===
 # Secrets and keys - NEVER COMMIT
