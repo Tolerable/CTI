@@ -5,6 +5,7 @@ import openai
 import os
 import json
 import send2trash
+import keyring
 
 # Ensure the 'personas' subfolder exists
 if not os.path.exists('personas'):
@@ -15,13 +16,15 @@ if not os.path.exists('nicknames.json'):
     with open('nicknames.json', 'w') as file:
         json.dump({}, file)
 
-# Load or prompt for API key
+# Load or prompt for API key (stored in OS keyring, not plaintext)
+KEYRING_SERVICE = 'CTI_OpenAI'
+KEYRING_USER = 'api_key'
+
 def set_api_key():
     api_key = simpledialog.askstring("Input", "Please enter your OpenAI API key:", show='*')
     if api_key:
         os.environ['OPENAI_API_KEY'] = api_key
-        with open('api_key.txt', 'w') as file:
-            file.write(api_key)
+        keyring.set_password(KEYRING_SERVICE, KEYRING_USER, api_key)
         openai.api_key = api_key
     else:
         messagebox.showwarning("Warning", "API key not set. The application may not work properly.")
@@ -32,22 +35,23 @@ def show_set_api_key():
         display_key = '*' * (len(current_key) - 4) + current_key[-4:]
     else:
         display_key = current_key
-    
+
     new_key = simpledialog.askstring("API Key", f"Current API Key: {display_key}\nEnter new API Key:", show='*')
     if new_key:
         os.environ['OPENAI_API_KEY'] = new_key
-        with open('api_key.txt', 'w') as file:
-            file.write(new_key)
+        keyring.set_password(KEYRING_SERVICE, KEYRING_USER, new_key)
         openai.api_key = new_key
         messagebox.showinfo("Success", "API Key has been updated.")
 
 if os.getenv('OPENAI_API_KEY'):
     openai.api_key = os.getenv('OPENAI_API_KEY')
-elif os.path.exists('api_key.txt'):
-    with open('api_key.txt', 'r') as file:
-        openai.api_key = file.read().strip()
 else:
-    set_api_key()
+    stored_key = keyring.get_password(KEYRING_SERVICE, KEYRING_USER)
+    if stored_key:
+        openai.api_key = stored_key
+        os.environ['OPENAI_API_KEY'] = stored_key
+    else:
+        set_api_key()
 
 # Define the client
 client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
